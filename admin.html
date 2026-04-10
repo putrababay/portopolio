@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Panel - Portofolio Bayu</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.quilljs.com/1.3.6/quill.snow.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+    />
+
+    <style>
+      body {
+        background-color: #f4f7f6;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .card {
+        border: none;
+        border-radius: 12px;
+      }
+      .ql-container {
+        height: 150px;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+      .ql-toolbar {
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+      }
+
+      /* Image Preview Style */
+      .img-preview-wrapper {
+        position: relative;
+        width: 100%;
+        padding-top: 100%;
+        background: #e9ecef;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px dashed #dee2e6;
+        transition: all 0.3s;
+      }
+      .img-preview-wrapper:hover {
+        border-color: #0d6efd;
+      }
+      .img-preview-wrapper img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: none;
+      }
+      .img-preview-wrapper .placeholder-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #adb5bd;
+        font-size: 1.2rem;
+      }
+      .table-img {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container py-5">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h2 class="fw-bold mb-0">Project Console</h2>
+          <small class="text-muted">Kelola data portofolio D1 Cloudflare</small>
+        </div>
+        <button class="btn btn-primary px-4 shadow-sm" onclick="openModal()">
+          <i class="bi bi-plus-lg me-2"></i>Tambah Projek
+        </button>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="bg-light">
+                <tr>
+                  <th class="ps-4">Projek</th>
+                  <th>Gambar Utama</th>
+                  <th>Teknologi</th>
+                  <th class="text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="projekModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <form id="projekForm">
+            <div class="modal-header border-0">
+              <h5 class="modal-title fw-bold" id="modalTitle">
+                Konfigurasi Projek
+              </h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" name="id" id="projekId" />
+
+              <div class="row">
+                <div class="col-lg-8">
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">Nama Projek</label>
+                    <input
+                      type="text"
+                      name="nm_projek"
+                      class="form-control"
+                      placeholder="Input nama projek..."
+                      required
+                    />
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold"
+                      >Title (Short Intro)</label
+                    >
+                    <div id="editor-title"></div>
+                  </div>
+
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label fw-semibold">Deskripsi</label>
+                      <div id="editor-deskripsi"></div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label fw-semibold">Fitur Utama</label>
+                      <div id="editor-fitur"></div>
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label
+                      class="form-label fw-semibold d-flex justify-content-between"
+                    >
+                      Teknologi Stack
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary border-0"
+                        onclick="addTechField()"
+                      >
+                        <i class="bi bi-plus-circle"></i> Tambah
+                      </button>
+                    </label>
+                    <div id="tech-container" class="row row-cols-2 g-2"></div>
+                  </div>
+                </div>
+
+                <div class="col-lg-4 bg-light p-3 rounded">
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">Link Demo</label>
+                    <input
+                      type="url"
+                      name="link"
+                      class="form-control mb-2"
+                      placeholder="https://..."
+                    />
+                    <label class="form-label fw-semibold">Link YouTube</label>
+                    <input
+                      type="text"
+                      name="youtube"
+                      class="form-control"
+                      placeholder="ID Video / URL"
+                    />
+                  </div>
+
+                  <label class="form-label fw-semibold"
+                    >Gallery Images (Blob)</label
+                  >
+                  <div class="row row-cols-3 g-2">
+                    <script>
+                      for (let i = 1; i <= 5; i++) {
+                        document.write(`
+                                            <div class="col">
+                                                <div class="img-preview-wrapper" id="wrapper-img${i}">
+                                                    <i class="bi bi-camera placeholder-icon"></i>
+                                                    <img id="prev-img${i}" src="" alt="preview">
+                                                </div>
+                                                <input type="file" name="img${i}" class="d-none" id="file-img${i}" accept="image/*" onchange="previewImage(this, 'img${i}')">
+                                                <button type="button" class="btn btn-sm btn-dark w-100 mt-1" onclick="document.getElementById('file-img${i}').click()">Img ${i}</button>
+                                            </div>
+                                        `);
+                      }
+                    </script>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer border-0">
+              <button
+                type="button"
+                class="btn btn-light"
+                data-bs-dismiss="modal"
+              >
+                Batal
+              </button>
+              <button type="submit" class="btn btn-primary px-4">
+                Simpan Projek
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+    <script>
+      // Konfigurasi API - Menggunakan URL Worker Anda
+      const API_URL = "https://d1-rest.bayuanggara-bp.workers.dev/api/projek";
+
+      let quillTitle, quillDeskripsi, quillFitur, myModal;
+
+      document.addEventListener("DOMContentLoaded", function () {
+        // Init Modal
+        myModal = new bootstrap.Modal(document.getElementById("projekModal"));
+
+        // Init Quill
+        const qConfig = {
+          theme: "snow",
+          modules: {
+            toolbar: [
+              ["bold", "italic"],
+              [{ list: "ordered" }, { list: "bullet" }],
+            ],
+          },
+        };
+        quillTitle = new Quill("#editor-title", qConfig);
+        quillDeskripsi = new Quill("#editor-deskripsi", qConfig);
+        quillFitur = new Quill("#editor-fitur", qConfig);
+
+        // Load Initial Data
+        loadData();
+
+        // Form Submit Handler
+        document
+          .getElementById("projekForm")
+          .addEventListener("submit", handleFormSubmit);
+      });
+
+      // Preview Logic
+      function previewImage(input, targetId) {
+        const preview = document.getElementById(`prev-${targetId}`);
+        const placeholder = document.querySelector(
+          `#wrapper-${targetId} .placeholder-icon`,
+        );
+
+        if (input.files && input.files[0]) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            preview.src = e.target.result;
+            preview.style.display = "block";
+            if (placeholder) placeholder.style.display = "none";
+          };
+          reader.readAsDataURL(input.files[0]);
+        }
+      }
+
+      function resetPreviews() {
+        for (let i = 1; i <= 5; i++) {
+          const img = document.getElementById(`prev-img${i}`);
+          const icon = document.querySelector(
+            `#wrapper-img${i} .placeholder-icon`,
+          );
+          if (img) {
+            img.src = "";
+            img.style.display = "none";
+          }
+          if (icon) icon.style.display = "block";
+        }
+      }
+
+      // Technology Inputs Logic
+      function addTechField(value = "") {
+        const container = document.getElementById("tech-container");
+        const col = document.createElement("div");
+        col.className = "col";
+        col.innerHTML = `
+            <div class="input-group">
+                <input type="text" class="form-control form-control-sm tech-input" value="${value}" placeholder="Teknologi">
+                <button class="btn btn-outline-danger btn-sm" type="button" onclick="this.closest('.col').remove()">-</button>
+            </div>
+        `;
+        container.appendChild(col);
+      }
+
+      // CRUD - READ
+      async function loadData() {
+        try {
+          const resp = await fetch(API_URL);
+          if (!resp.ok) throw new Error("Network response was not ok");
+          const data = await resp.json();
+
+          const tbody = document.getElementById("tableBody");
+          tbody.innerHTML = data.length
+            ? data
+                .map((item) => {
+                  let techs = [];
+                  try {
+                    techs = JSON.parse(item.teknologi || "[]");
+                  } catch (e) {
+                    techs = [];
+                  }
+
+                  return `
+                <tr>
+                    <td class="ps-4 fw-bold">${item.nm_projek}</td>
+                    <td>
+                        ${item.img1 ? `<img src="data:image/jpeg;base64,${item.img1}" class="table-img shadow-sm">` : '<span class="text-muted">No Image</span>'}
+                    </td>
+                    <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1">${t}</span>`).join("")}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+                })
+                .join("")
+            : '<tr><td colspan="4" class="text-center py-4 text-muted">Belum ada data projek.</td></tr>';
+        } catch (err) {
+          console.error("Error:", err);
+        }
+      }
+
+      // Modal Control
+      function openModal() {
+        document.getElementById("projekForm").reset();
+        document.getElementById("projekId").value = "";
+        quillTitle.setContents([]);
+        quillDeskripsi.setContents([]);
+        quillFitur.setContents([]);
+        document.getElementById("tech-container").innerHTML = "";
+        addTechField("PHP"); // Default field
+        resetPreviews();
+        myModal.show();
+      }
+
+      // CRUD - CREATE
+      async function handleFormSubmit(e) {
+        e.preventDefault();
+        Swal.fire({
+          title: "Menyimpan...",
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+        });
+
+        const formData = new FormData(e.target);
+        formData.append("title", quillTitle.root.innerHTML);
+        formData.append("deskripsi", quillDeskripsi.root.innerHTML);
+        formData.append("fitur", quillFitur.root.innerHTML);
+
+        const techArray = Array.from(document.querySelectorAll(".tech-input"))
+          .map((i) => i.value)
+          .filter((v) => v);
+        formData.append("teknologi", JSON.stringify(techArray));
+
+        try {
+          const resp = await fetch(API_URL, { method: "POST", body: formData });
+          if (resp.ok) {
+            Swal.fire("Berhasil!", "Data projek telah diperbarui.", "success");
+            myModal.hide();
+            loadData();
+          } else {
+            throw new Error("Gagal menyimpan ke database");
+          }
+        } catch (err) {
+          Swal.fire("Error", err.message, "error");
+        }
+      }
+
+      // CRUD - DELETE
+      async function deleteItem(id) {
+        const result = await Swal.fire({
+          title: "Hapus Projek?",
+          text: "Data ini akan dihapus permanen dari D1 SQLite.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#d33",
+          confirmButtonText: "Ya, Hapus",
+        });
+
+        if (result.isConfirmed) {
+          try {
+            await fetch(`${API_URL}?id=${id}`, { method: "DELETE" });
+            Swal.fire("Terhapus!", "Projek berhasil dihapus.", "success");
+            loadData();
+          } catch (err) {
+            Swal.fire("Error", "Gagal menghapus data", "error");
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

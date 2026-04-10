@@ -1,0 +1,9 @@
+name = "cctv-api"
+main = "worker.js"
+compatibility_date = "2024-04-05"
+
+# Konfigurasi Database D1 (Hasil Konversi dari JSON Anda)
+[[d1_databases]]
+binding = "DB" # Ini nama variabel yang akan dipanggil di worker.js
+database_name = "portopolio"
+database_id = "4bfbccf2-a5ef-4ce2-ad74-6489df4e3637"
