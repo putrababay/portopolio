@@ -235,16 +235,19 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
     <script>
-      // Konfigurasi API - Menggunakan URL Worker Anda
-      const API_URL = "https://d1-rest.bayuanggara-bp.workers.dev/api/projek";
+      // --- CONFIGURATION ---
+      const WORKER_URL = "https://d1-rest.bayuanggara-bp.workers.dev";
 
+      // --- GLOBAL STATE ---
       let quillTitle, quillDeskripsi, quillFitur, myModal;
 
+      // --- INITIALIZATION ---
       document.addEventListener("DOMContentLoaded", function () {
-        // Init Modal
-        myModal = new bootstrap.Modal(document.getElementById("projekModal"));
+        // Init Bootstrap Modal
+        const modalEl = document.getElementById("projekModal");
+        if (modalEl) myModal = new bootstrap.Modal(modalEl);
 
-        // Init Quill
+        // Init Quill Editors
         const qConfig = {
           theme: "snow",
           modules: {
@@ -258,16 +261,226 @@
         quillDeskripsi = new Quill("#editor-deskripsi", qConfig);
         quillFitur = new Quill("#editor-fitur", qConfig);
 
-        // Load Initial Data
+        // Load Data awal
         loadData();
 
-        // Form Submit Handler
+        // Event Listener Form
         document
           .getElementById("projekForm")
           .addEventListener("submit", handleFormSubmit);
       });
 
-      // Preview Logic
+      // --- ENGINE FETCH API (Universal Query) ---
+      async function runQuery(sqlQuery, params = []) {
+        try {
+          const response = await fetch(WORKER_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sql: sqlQuery,
+              params: params,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            throw new Error(errorBody.error || `HTTP Error ${response.status}`);
+          }
+
+          const json = await response.json();
+
+          // Mengikuti struktur D1 Native (json.results)
+          if (json.success && json.results) {
+            return json.results;
+          }
+          return [];
+        } catch (e) {
+          console.error("Gagal koneksi ke Worker:", e);
+          Swal.fire("Database Error", e.message, "error");
+          return [];
+        }
+      }
+
+      // --- CRUD OPERATIONS ---
+
+      // 1. READ
+      async function loadData() {
+        // Kita ambil id, nama, teknologi, dan img1 untuk daftar tabel
+        const sql =
+          "SELECT id, nm_projek, teknologi, img1 FROM projek ORDER BY id DESC";
+        const results = await runQuery(sql);
+
+        const tbody = document.getElementById("tableBody");
+        if (!results.length) {
+          tbody.innerHTML =
+            '<tr><td colspan="4" class="text-center py-4 text-muted">Belum ada data.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = results
+          .map((item) => {
+            let techs = [];
+            try {
+              techs = JSON.parse(item.teknologi || "[]");
+            } catch (e) {
+              techs = [];
+            }
+
+            // Konversi Array Buffer (dari D1) kembali ke Base64 untuk preview di tabel
+            let imgTag = '<span class="text-muted small">No Image</span>';
+            if (item.img1) {
+              const base64 = btoa(
+                String.fromCharCode(...new Uint8Array(item.img1)),
+              );
+              imgTag = `<img src="data:image/jpeg;base64,${base64}" class="table-img" style="width:50px; height:50px; object-fit:cover; border-radius:5px;">`;
+            }
+
+            return `
+        <tr>
+            <td class="ps-4 fw-bold">${item.nm_projek}</td>
+            <td>${imgTag}</td>
+            <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1">${t}</span>`).join("")}</td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>`;
+          })
+          .join("");
+      }
+
+      // 2. CREATE
+      async function handleFormSubmit(e) {
+        e.preventDefault();
+
+        Swal.fire({
+          title: "Menyimpan Data...",
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+        });
+
+        const formData = new FormData(e.target);
+
+        // Helper: Convert File Upload ke Array (agar bisa masuk JSON body)
+        const fileToBuffer = async (file) => {
+          if (!file || file.size === 0) return null;
+          const arrayBuffer = await file.arrayBuffer();
+          return Array.from(new Uint8Array(arrayBuffer));
+        };
+
+        // Ambil Values
+        const nm = formData.get("nm_projek");
+        const title = quillTitle.root.innerHTML;
+        const desk = quillDeskripsi.root.innerHTML;
+        const fit = quillFitur.root.innerHTML;
+        const link = formData.get("link");
+        const yt = formData.get("youtube");
+
+        // Teknologi Stack (Simpan sebagai JSON string)
+        const techInputs = document.querySelectorAll(".tech-input");
+        const teknologi = JSON.stringify(
+          Array.from(techInputs)
+            .map((i) => i.value)
+            .filter((v) => v),
+        );
+
+        // Ambil Gambar (Parallel)
+        const [i1, i2, i3, i4, i5] = await Promise.all([
+          fileToBuffer(formData.get("img1")),
+          fileToBuffer(formData.get("img2")),
+          fileToBuffer(formData.get("img3")),
+          fileToBuffer(formData.get("img4")),
+          fileToBuffer(formData.get("img5")),
+        ]);
+
+        const sql = `INSERT INTO projek (nm_projek, title, deskripsi, fitur, teknologi, link, youtube, img1, img2, img3, img4, img5) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+        const params = [
+          nm,
+          title,
+          desk,
+          fit,
+          teknologi,
+          link,
+          yt,
+          i1,
+          i2,
+          i3,
+          i4,
+          i5,
+        ];
+
+        const success = await runQuery(sql, params);
+
+        if (success) {
+          await Swal.fire(
+            "Berhasil!",
+            "Projek baru telah ditambahkan.",
+            "success",
+          );
+          myModal.hide();
+          loadData();
+        }
+      }
+
+      // 3. DELETE
+      async function deleteItem(id) {
+        const result = await Swal.fire({
+          title: "Hapus Projek?",
+          text: "Data akan dihapus permanen dari D1 SQLite.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#d33",
+          confirmButtonText: "Ya, Hapus!",
+        });
+
+        if (result.isConfirmed) {
+          const del = await runQuery("DELETE FROM projek WHERE id = ?", [id]);
+          if (del) {
+            Swal.fire("Dihapus!", "Data telah dibersihkan.", "success");
+            loadData();
+          }
+        }
+      }
+
+      // --- UI HELPERS ---
+
+      function openModal() {
+        const form = document.getElementById("projekForm");
+        form.reset();
+        document.getElementById("projekId").value = "";
+
+        // Reset Quill
+        quillTitle.setContents([]);
+        quillDeskripsi.setContents([]);
+        quillFitur.setContents([]);
+
+        // Reset Tech Container
+        document.getElementById("tech-container").innerHTML = "";
+        addTechField("PHP"); // Default field
+
+        // Reset Image Previews (jika ada fungsi resetPreviews)
+        if (typeof resetPreviews === "function") resetPreviews();
+
+        myModal.show();
+      }
+
+      function addTechField(value = "") {
+        const container = document.getElementById("tech-container");
+        const div = document.createElement("div");
+        div.className = "col";
+        div.innerHTML = `
+        <div class="input-group">
+            <input type="text" class="form-control form-control-sm tech-input" value="${value}" placeholder="Teknologi">
+            <button class="btn btn-outline-danger btn-sm" type="button" onclick="this.closest('.col').remove()">-</button>
+        </div>
+    `;
+        container.appendChild(div);
+      }
+
+      // Preview Image Handler
       function previewImage(input, targetId) {
         const preview = document.getElementById(`prev-${targetId}`);
         const placeholder = document.querySelector(
@@ -296,127 +509,6 @@
             img.style.display = "none";
           }
           if (icon) icon.style.display = "block";
-        }
-      }
-
-      // Technology Inputs Logic
-      function addTechField(value = "") {
-        const container = document.getElementById("tech-container");
-        const col = document.createElement("div");
-        col.className = "col";
-        col.innerHTML = `
-            <div class="input-group">
-                <input type="text" class="form-control form-control-sm tech-input" value="${value}" placeholder="Teknologi">
-                <button class="btn btn-outline-danger btn-sm" type="button" onclick="this.closest('.col').remove()">-</button>
-            </div>
-        `;
-        container.appendChild(col);
-      }
-
-      // CRUD - READ
-      async function loadData() {
-        try {
-          const resp = await fetch(API_URL);
-          if (!resp.ok) throw new Error("Network response was not ok");
-          const data = await resp.json();
-
-          const tbody = document.getElementById("tableBody");
-          tbody.innerHTML = data.length
-            ? data
-                .map((item) => {
-                  let techs = [];
-                  try {
-                    techs = JSON.parse(item.teknologi || "[]");
-                  } catch (e) {
-                    techs = [];
-                  }
-
-                  return `
-                <tr>
-                    <td class="ps-4 fw-bold">${item.nm_projek}</td>
-                    <td>
-                        ${item.img1 ? `<img src="data:image/jpeg;base64,${item.img1}" class="table-img shadow-sm">` : '<span class="text-muted">No Image</span>'}
-                    </td>
-                    <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1">${t}</span>`).join("")}</td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>`;
-                })
-                .join("")
-            : '<tr><td colspan="4" class="text-center py-4 text-muted">Belum ada data projek.</td></tr>';
-        } catch (err) {
-          console.error("Error:", err);
-        }
-      }
-
-      // Modal Control
-      function openModal() {
-        document.getElementById("projekForm").reset();
-        document.getElementById("projekId").value = "";
-        quillTitle.setContents([]);
-        quillDeskripsi.setContents([]);
-        quillFitur.setContents([]);
-        document.getElementById("tech-container").innerHTML = "";
-        addTechField("PHP"); // Default field
-        resetPreviews();
-        myModal.show();
-      }
-
-      // CRUD - CREATE
-      async function handleFormSubmit(e) {
-        e.preventDefault();
-        Swal.fire({
-          title: "Menyimpan...",
-          allowOutsideClick: false,
-          didOpen: () => Swal.showLoading(),
-        });
-
-        const formData = new FormData(e.target);
-        formData.append("title", quillTitle.root.innerHTML);
-        formData.append("deskripsi", quillDeskripsi.root.innerHTML);
-        formData.append("fitur", quillFitur.root.innerHTML);
-
-        const techArray = Array.from(document.querySelectorAll(".tech-input"))
-          .map((i) => i.value)
-          .filter((v) => v);
-        formData.append("teknologi", JSON.stringify(techArray));
-
-        try {
-          const resp = await fetch(API_URL, { method: "POST", body: formData });
-          if (resp.ok) {
-            Swal.fire("Berhasil!", "Data projek telah diperbarui.", "success");
-            myModal.hide();
-            loadData();
-          } else {
-            throw new Error("Gagal menyimpan ke database");
-          }
-        } catch (err) {
-          Swal.fire("Error", err.message, "error");
-        }
-      }
-
-      // CRUD - DELETE
-      async function deleteItem(id) {
-        const result = await Swal.fire({
-          title: "Hapus Projek?",
-          text: "Data ini akan dihapus permanen dari D1 SQLite.",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonColor: "#d33",
-          confirmButtonText: "Ya, Hapus",
-        });
-
-        if (result.isConfirmed) {
-          try {
-            await fetch(`${API_URL}?id=${id}`, { method: "DELETE" });
-            Swal.fire("Terhapus!", "Projek berhasil dihapus.", "success");
-            loadData();
-          } catch (err) {
-            Swal.fire("Error", "Gagal menghapus data", "error");
-          }
         }
       }
     </script>
