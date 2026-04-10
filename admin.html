@@ -15,7 +15,7 @@
     />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
     />
 
     <style>
@@ -37,42 +37,47 @@
         border-top-right-radius: 8px;
       }
 
-      /* Image Preview Style */
-      .img-preview-wrapper {
-        position: relative;
-        width: 100%;
-        padding-top: 100%;
-        background: #e9ecef;
-        border-radius: 8px;
-        overflow: hidden;
+      /* Modern Image Upload Box */
+      .img-upload-box {
         border: 2px dashed #dee2e6;
-        transition: all 0.3s;
+        border-radius: 12px;
+        background: #fdfdfd;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        height: 160px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
       }
-      .img-preview-wrapper:hover {
+      .img-upload-box:hover {
         border-color: #0d6efd;
+        background: #f8fbff;
       }
-      .img-preview-wrapper img {
+      .preview-img-full {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: none;
         position: absolute;
         top: 0;
         left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: none;
+        z-index: 5;
+        background: #fff;
       }
-      .img-preview-wrapper .placeholder-icon {
+      .btn-delete-img {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: #adb5bd;
-        font-size: 1.2rem;
+        top: 5px;
+        right: 5px;
+        z-index: 10;
+        display: none;
+        padding: 0 6px;
+        font-size: 12px;
       }
-      .table-img {
-        width: 60px;
-        height: 60px;
-        object-fit: cover;
-        border-radius: 6px;
+      .thumb-img.active {
+        border: 3px solid #0d6efd !important;
       }
     </style>
   </head>
@@ -91,12 +96,15 @@
       <div class="card shadow-sm">
         <div class="card-body p-0">
           <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle">
               <thead class="bg-light">
                 <tr>
-                  <th class="ps-4">Projek</th>
-                  <th>Gambar Utama</th>
+                  <th class="ps-4" style="width: 50px">No</th>
+                  <th>Nama Projek</th>
+                  <th>Title</th>
                   <th>Teknologi</th>
+                  <th>Link</th>
+                  <th>Preview</th>
                   <th class="text-center">Aksi</th>
                 </tr>
               </thead>
@@ -124,89 +132,81 @@
             </div>
             <div class="modal-body">
               <input type="hidden" name="id" id="projekId" />
-
               <div class="row">
-                <div class="col-lg-8">
+                <div class="col-lg-7">
                   <div class="mb-3">
                     <label class="form-label fw-semibold">Nama Projek</label>
                     <input
                       type="text"
                       name="nm_projek"
                       class="form-control"
-                      placeholder="Input nama projek..."
+                      placeholder="Nama Projek..."
                       required
                     />
                   </div>
-
                   <div class="mb-3">
-                    <label class="form-label fw-semibold"
-                      >Title (Short Intro)</label
-                    >
+                    <label class="form-label fw-semibold">Short Title</label>
                     <div id="editor-title"></div>
                   </div>
-
                   <div class="row">
                     <div class="col-md-6 mb-3">
                       <label class="form-label fw-semibold">Deskripsi</label>
                       <div id="editor-deskripsi"></div>
                     </div>
                     <div class="col-md-6 mb-3">
-                      <label class="form-label fw-semibold">Fitur Utama</label>
+                      <label class="form-label fw-semibold">Fitur</label>
                       <div id="editor-fitur"></div>
                     </div>
                   </div>
-
-                  <div class="mb-3">
-                    <label
-                      class="form-label fw-semibold d-flex justify-content-between"
-                    >
-                      Teknologi Stack
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-primary border-0"
-                        onclick="addTechField()"
-                      >
-                        <i class="bi bi-plus-circle"></i> Tambah
-                      </button>
-                    </label>
-                    <div id="tech-container" class="row row-cols-2 g-2"></div>
-                  </div>
                 </div>
-
-                <div class="col-lg-4 bg-light p-3 rounded">
+                <div class="col-lg-5 border-start">
                   <div class="mb-3">
-                    <label class="form-label fw-semibold">Link Demo</label>
+                    <label class="form-label fw-semibold">Demo & Video</label>
                     <input
                       type="url"
                       name="link"
                       class="form-control mb-2"
-                      placeholder="https://..."
+                      placeholder="URL Demo (https://...)"
                     />
-                    <label class="form-label fw-semibold">Link YouTube</label>
                     <input
                       type="text"
                       name="youtube"
                       class="form-control"
-                      placeholder="ID Video / URL"
+                      placeholder="ID YouTube"
                     />
                   </div>
-
-                  <label class="form-label fw-semibold"
-                    >Gallery Images (Blob)</label
+                  <div class="mb-3">
+                    <label
+                      class="form-label fw-semibold d-flex justify-content-between"
+                    >
+                      Tech Stack
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-link p-0 text-decoration-none"
+                        onclick="addTechField()"
+                      >
+                        + Tambah
+                      </button>
+                    </label>
+                    <div id="tech-container" class="row row-cols-2 g-2"></div>
+                  </div>
+                  <hr />
+                  <label class="form-label fw-bold"
+                    >Gallery (Preview di atas, Input di bawah)</label
                   >
-                  <div class="row row-cols-3 g-2">
+                  <div class="row row-cols-2 row-cols-md-3 g-2">
                     <script>
                       for (let i = 1; i <= 5; i++) {
                         document.write(`
-                                            <div class="col">
-                                                <div class="img-preview-wrapper" id="wrapper-img${i}">
-                                                    <i class="bi bi-camera placeholder-icon"></i>
-                                                    <img id="prev-img${i}" src="" alt="preview">
+                                                <div class="col">
+                                                    <div class="img-upload-box mb-1" id="box-img${i}" onclick="document.getElementById('file-img${i}').click()">
+                                                        <i class="bi bi-camera text-muted placeholder-icon"></i>
+                                                        <img id="prev-img${i}" class="preview-img-full">
+                                                        <button type="button" class="btn btn-danger btn-delete-img" onclick="clearImage(event, ${i})"><i class="bi bi-x"></i></button>
+                                                    </div>
+                                                    <input type="file" name="img${i}" class="form-control form-control-sm" id="file-img${i}" accept="image/*" onchange="handlePreview(this, ${i})">
                                                 </div>
-                                                <input type="file" name="img${i}" class="d-none" id="file-img${i}" accept="image/*" onchange="previewImage(this, 'img${i}')">
-                                                <button type="button" class="btn btn-sm btn-dark w-100 mt-1" onclick="document.getElementById('file-img${i}').click()">Img ${i}</button>
-                                            </div>
-                                        `);
+                                            `);
                       }
                     </script>
                   </div>
@@ -222,7 +222,7 @@
                 Batal
               </button>
               <button type="submit" class="btn btn-primary px-4">
-                Simpan Projek
+                Simpan Data
               </button>
             </div>
           </form>
@@ -235,19 +235,11 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
     <script>
-      // --- CONFIGURATION ---
       const WORKER_URL = "https://d1-rest.bayuanggara-bp.workers.dev";
-
-      // --- GLOBAL STATE ---
       let quillTitle, quillDeskripsi, quillFitur, myModal;
 
-      // --- INITIALIZATION ---
-      document.addEventListener("DOMContentLoaded", function () {
-        // Init Bootstrap Modal
-        const modalEl = document.getElementById("projekModal");
-        if (modalEl) myModal = new bootstrap.Modal(modalEl);
-
-        // Init Quill Editors
+      document.addEventListener("DOMContentLoaded", () => {
+        myModal = new bootstrap.Modal(document.getElementById("projekModal"));
         const qConfig = {
           theme: "snow",
           modules: {
@@ -260,255 +252,338 @@
         quillTitle = new Quill("#editor-title", qConfig);
         quillDeskripsi = new Quill("#editor-deskripsi", qConfig);
         quillFitur = new Quill("#editor-fitur", qConfig);
-
-        // Load Data awal
         loadData();
-
-        // Event Listener Form
-        document
-          .getElementById("projekForm")
-          .addEventListener("submit", handleFormSubmit);
+        document.getElementById("projekForm").onsubmit = handleFormSubmit;
       });
 
-      // --- ENGINE FETCH API (Universal Query) ---
-      async function runQuery(sqlQuery, params = []) {
+      async function runQuery(sql, params = []) {
         try {
-          const response = await fetch(WORKER_URL, {
+          const res = await fetch(WORKER_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sql: sqlQuery,
-              params: params,
-            }),
+            body: JSON.stringify({ sql, params }),
           });
-
-          if (!response.ok) {
-            const errorBody = await response.json().catch(() => ({}));
-            throw new Error(errorBody.error || `HTTP Error ${response.status}`);
-          }
-
-          const json = await response.json();
-
-          // Mengikuti struktur D1 Native (json.results)
-          if (json.success && json.results) {
-            return json.results;
-          }
-          return [];
+          const json = await res.json();
+          return json.success
+            ? json.results
+            : (Swal.fire("Error", json.error, "error"), null);
         } catch (e) {
-          console.error("Gagal koneksi ke Worker:", e);
-          Swal.fire("Database Error", e.message, "error");
-          return [];
+          return (console.error(e), null);
         }
       }
 
-      // --- CRUD OPERATIONS ---
+      function arrayBufferToBase64(buffer) {
+        if (!buffer) return null;
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++)
+          binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
 
-      // 1. READ
-      async function loadData() {
-        // Kita ambil id, nama, teknologi, dan img1 untuk daftar tabel
-        const sql =
-          "SELECT id, nm_projek, teknologi, img1 FROM projek ORDER BY id DESC";
-        const results = await runQuery(sql);
+      // --- HELPER: FILE TO BUFFER DENGAN KOMPRESI OTOMATIS ---
+      async function fileToBuffer(file) {
+        if (!file || !(file instanceof File) || file.size === 0) return null;
 
-        const tbody = document.getElementById("tableBody");
-        if (!results.length) {
-          tbody.innerHTML =
-            '<tr><td colspan="4" class="text-center py-4 text-muted">Belum ada data.</td></tr>';
-          return;
+        // Jika ukuran file > 1.5MB (kita set sedikit di bawah 2MB agar aman)
+        if (file.size > 1.5 * 1024 * 1024) {
+          console.log(
+            `Mengompres file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
+          );
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+              const img = new Image();
+              img.src = event.target.result;
+              img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+
+                // Maksimal dimensi 1200px (Opsional, agar proses lebih ringan)
+                const MAX_WIDTH = 1200;
+                const MAX_HEIGHT = 1200;
+
+                if (width > height) {
+                  if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                  }
+                } else {
+                  if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                  }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Kompresi kualitas ke 0.7 (70%)
+                canvas.toBlob(
+                  (blob) => {
+                    const readerBlob = new FileReader();
+                    readerBlob.onloadend = () => {
+                      resolve(Array.from(new Uint8Array(readerBlob.result)));
+                    };
+                    readerBlob.readAsArrayBuffer(blob);
+                  },
+                  "image/jpeg",
+                  0.7,
+                );
+              };
+            };
+          });
+        } else {
+          // Jika file kecil, langsung ubah ke buffer tanpa kompresi
+          const arrayBuffer = await file.arrayBuffer();
+          return Array.from(new Uint8Array(arrayBuffer));
         }
-
-        tbody.innerHTML = results
-          .map((item) => {
+      }
+      // --- LOAD DATA & TABLE ---
+      async function loadData() {
+        const results = await runQuery("SELECT * FROM projek ORDER BY id DESC");
+        if (!results) return;
+        document.getElementById("tableBody").innerHTML = results
+          .map((item, index) => {
             let techs = [];
             try {
-              techs = JSON.parse(item.teknologi || "[]");
-            } catch (e) {
-              techs = [];
-            }
-
-            // Konversi Array Buffer (dari D1) kembali ke Base64 untuk preview di tabel
-            let imgTag = '<span class="text-muted small">No Image</span>';
-            if (item.img1) {
-              const base64 = btoa(
-                String.fromCharCode(...new Uint8Array(item.img1)),
-              );
-              imgTag = `<img src="data:image/jpeg;base64,${base64}" class="table-img" style="width:50px; height:50px; object-fit:cover; border-radius:5px;">`;
-            }
-
+              techs = JSON.parse(item.teknologi);
+            } catch (e) {}
+            const b64 = arrayBufferToBase64(item.img1);
             return `
-        <tr>
-            <td class="ps-4 fw-bold">${item.nm_projek}</td>
-            <td>${imgTag}</td>
-            <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1">${t}</span>`).join("")}</td>
-            <td class="text-center">
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
-        </tr>`;
+                <tr>
+                    <td class="ps-4 text-muted small">${index + 1}</td>
+                    <td class="fw-bold">${item.nm_projek}</td>
+                    <td><div class="small text-muted text-truncate" style="max-width:150px">${item.title}</div></td>
+                    <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1">${t}</span>`).join("")}</td>
+                    <td><a href="${item.link}" target="_blank" class="btn btn-sm btn-link p-0"><i class="bi bi-box-arrow-up-right"></i></a></td>
+                    <td>${b64 ? `<img src="data:image/jpeg;base64,${b64}" class="rounded shadow-sm" style="width:40px;height:40px;object-fit:cover;cursor:pointer" onclick="showGallery(${item.id})">` : "-"}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})"><i class="bi bi-trash"></i></button>
+                    </td>
+                </tr>`;
           })
           .join("");
       }
 
-      // 2. CREATE
+      // --- GALLERY SLIDESHOW ---
+      async function showGallery(id) {
+        Swal.fire({ title: "Loading...", didOpen: () => Swal.showLoading() });
+        const res = await runQuery("SELECT * FROM projek WHERE id = ?", [id]);
+        if (!res || res.length === 0) return;
+        const data = res[0],
+          imgs = [];
+        for (let i = 1; i <= 5; i++) {
+          const b64 = arrayBufferToBase64(data[`img${i}`]);
+          if (b64) imgs.push(`data:image/jpeg;base64,${b64}`);
+        }
+        Swal.fire({
+          title: data.nm_projek,
+          width: "800px",
+          showConfirmButton: false,
+          showCloseButton: true,
+          html: `
+                    <div class="main-view mb-3 position-relative bg-light rounded p-2">
+                        <img id="active-gallery-img" src="${imgs[0]}" class="img-fluid" style="max-height:400px; object-fit:contain">
+                        <button onclick="downloadImg()" class="btn btn-dark btn-sm position-absolute top-0 end-0 m-3"><i class="bi bi-download"></i></button>
+                    </div>
+                    <div class="d-flex justify-content-center gap-2">
+                        ${imgs.map((s, i) => `<img src="${s}" class="thumb-img rounded border ${i === 0 ? "active" : ""}" style="width:60px;height:45px;object-fit:cover;cursor:pointer" onclick="document.getElementById('active-gallery-img').src=this.src; document.querySelectorAll('.thumb-img').forEach(t=>t.classList.remove('active')); this.classList.add('active')">`).join("")}
+                    </div>`,
+        });
+      }
+
+      function downloadImg() {
+        const link = document.createElement("a");
+        link.href = document.getElementById("active-gallery-img").src;
+        link.download = "projek_image.jpg";
+        link.click();
+      }
+
+      // --- FORM LOGIC ---
+      function handlePreview(input, idx) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = document.getElementById(`prev-img${idx}`);
+          img.src = e.target.result;
+          img.style.display = "block";
+          document.getElementById(`del-img${idx}`).style.display = "block";
+          document.querySelector(
+            `#box-img${idx} .placeholder-icon`,
+          ).style.display = "none";
+        };
+        if (input.files[0]) reader.readAsDataURL(input.files[0]);
+      }
+
+      function clearImage(e, idx) {
+        e.stopPropagation();
+        document.getElementById(`file-img${idx}`).value = "";
+        document.getElementById(`prev-img${idx}`).style.display = "none";
+        document.getElementById(`del-img${idx}`).style.display = "none";
+        document.querySelector(
+          `#box-img${idx} .placeholder-icon`,
+        ).style.display = "block";
+      }
+
+      function addTechField(val = "") {
+        const div = document.createElement("div");
+        div.className = "col-6";
+        div.innerHTML = `<div class="input-group input-group-sm">
+                <input type="text" class="form-control tech-input" value="${val}" placeholder="Tech">
+                <button class="btn btn-outline-danger" type="button" onclick="this.closest('.col-6').remove()"><i class="bi bi-x"></i></button>
+            </div>`;
+        document.getElementById("tech-container").appendChild(div);
+      }
+
       async function handleFormSubmit(e) {
         e.preventDefault();
-
         Swal.fire({
-          title: "Menyimpan Data...",
+          title: "Menyimpan...",
           allowOutsideClick: false,
           didOpen: () => Swal.showLoading(),
         });
-
-        const formData = new FormData(e.target);
-
-        // Helper: Convert File Upload ke Array (agar bisa masuk JSON body)
-        const fileToBuffer = async (file) => {
-          if (!file || file.size === 0) return null;
-          const arrayBuffer = await file.arrayBuffer();
-          return Array.from(new Uint8Array(arrayBuffer));
-        };
-
-        // Ambil Values
-        const nm = formData.get("nm_projek");
-        const title = quillTitle.root.innerHTML;
-        const desk = quillDeskripsi.root.innerHTML;
-        const fit = quillFitur.root.innerHTML;
-        const link = formData.get("link");
-        const yt = formData.get("youtube");
-
-        // Teknologi Stack (Simpan sebagai JSON string)
-        const techInputs = document.querySelectorAll(".tech-input");
-        const teknologi = JSON.stringify(
-          Array.from(techInputs)
+        const fd = new FormData(e.target);
+        const id = document.getElementById("projekId").value;
+        const tech = JSON.stringify(
+          Array.from(document.querySelectorAll(".tech-input"))
             .map((i) => i.value)
             .filter((v) => v),
         );
 
-        // Ambil Gambar (Parallel)
-        const [i1, i2, i3, i4, i5] = await Promise.all([
-          fileToBuffer(formData.get("img1")),
-          fileToBuffer(formData.get("img2")),
-          fileToBuffer(formData.get("img3")),
-          fileToBuffer(formData.get("img4")),
-          fileToBuffer(formData.get("img5")),
-        ]);
-
-        const sql = `INSERT INTO projek (nm_projek, title, deskripsi, fitur, teknologi, link, youtube, img1, img2, img3, img4, img5) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-        const params = [
-          nm,
-          title,
-          desk,
-          fit,
-          teknologi,
-          link,
-          yt,
-          i1,
-          i2,
-          i3,
-          i4,
-          i5,
+        let params = [
+          fd.get("nm_projek"),
+          quillTitle.root.innerHTML,
+          quillDeskripsi.root.innerHTML,
+          quillFitur.root.innerHTML,
+          tech,
+          fd.get("link"),
+          fd.get("youtube"),
         ];
 
-        const success = await runQuery(sql, params);
-
-        if (success) {
-          await Swal.fire(
-            "Berhasil!",
-            "Projek baru telah ditambahkan.",
-            "success",
+        if (id) {
+          let imgQuery = "";
+          for (let i = 1; i <= 5; i++) {
+            const buf = await fileToBuffer(fd.get(`img${i}`));
+            if (buf) {
+              imgQuery += `, img${i}=?`;
+              params.push(buf);
+            }
+          }
+          params.push(id);
+          await runQuery(
+            `UPDATE projek SET nm_projek=?, title=?, deskripsi=?, fitur=?, teknologi=?, link=?, youtube=? ${imgQuery} WHERE id=?`,
+            params,
           );
-          myModal.hide();
-          loadData();
+        } else {
+          for (let i = 1; i <= 5; i++)
+            params.push(await fileToBuffer(fd.get(`img${i}`)));
+          await runQuery(
+            "INSERT INTO projek (nm_projek, title, deskripsi, fitur, teknologi, link, youtube, img1, img2, img3, img4, img5) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            params,
+          );
         }
+        myModal.hide();
+        loadData();
+        Swal.fire("Berhasil", "Data tersimpan", "success");
       }
 
-      // 3. DELETE
-      async function deleteItem(id) {
-        const result = await Swal.fire({
-          title: "Hapus Projek?",
-          text: "Data akan dihapus permanen dari D1 SQLite.",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonColor: "#d33",
-          confirmButtonText: "Ya, Hapus!",
-        });
+      async function editItem(id) {
+        const res = await runQuery("SELECT * FROM projek WHERE id = ?", [id]);
+        if (!res || res.length === 0) return;
+        const d = res[0];
+        openModal(true);
+        document.getElementById("projekId").value = d.id;
+        document.getElementById("projekForm").nm_projek.value = d.nm_projek;
+        quillTitle.root.innerHTML = d.title;
+        quillDeskripsi.root.innerHTML = d.deskripsi;
+        quillFitur.root.innerHTML = d.fitur;
+        document.getElementById("projekForm").link.value = d.link;
+        document.getElementById("projekForm").youtube.value = d.youtube;
+        JSON.parse(d.teknologi || "[]").forEach((t) => addTechField(t));
 
-        if (result.isConfirmed) {
-          const del = await runQuery("DELETE FROM projek WHERE id = ?", [id]);
-          if (del) {
-            Swal.fire("Dihapus!", "Data telah dibersihkan.", "success");
-            loadData();
+        for (let i = 1; i <= 5; i++) {
+          const b64 = arrayBufferToBase64(d[`img${i}`]);
+          if (b64) {
+            const img = document.getElementById(`prev-img${i}`);
+            img.src = `data:image/jpeg;base64,${b64}`;
+            img.style.display = "block";
+            document.querySelector(
+              `#box-img${i} .placeholder-icon`,
+            ).style.display = "none";
           }
         }
-      }
-
-      // --- UI HELPERS ---
-
-      function openModal() {
-        const form = document.getElementById("projekForm");
-        form.reset();
-        document.getElementById("projekId").value = "";
-
-        // Reset Quill
-        quillTitle.setContents([]);
-        quillDeskripsi.setContents([]);
-        quillFitur.setContents([]);
-
-        // Reset Tech Container
-        document.getElementById("tech-container").innerHTML = "";
-        addTechField("PHP"); // Default field
-
-        // Reset Image Previews (jika ada fungsi resetPreviews)
-        if (typeof resetPreviews === "function") resetPreviews();
-
         myModal.show();
       }
 
-      function addTechField(value = "") {
-        const container = document.getElementById("tech-container");
-        const div = document.createElement("div");
-        div.className = "col";
-        div.innerHTML = `
-        <div class="input-group">
-            <input type="text" class="form-control form-control-sm tech-input" value="${value}" placeholder="Teknologi">
-            <button class="btn btn-outline-danger btn-sm" type="button" onclick="this.closest('.col').remove()">-</button>
-        </div>
-    `;
-        container.appendChild(div);
-      }
-
-      // Preview Image Handler
-      function previewImage(input, targetId) {
-        const preview = document.getElementById(`prev-${targetId}`);
-        const placeholder = document.querySelector(
-          `#wrapper-${targetId} .placeholder-icon`,
-        );
-
-        if (input.files && input.files[0]) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            preview.src = e.target.result;
-            preview.style.display = "block";
-            if (placeholder) placeholder.style.display = "none";
-          };
-          reader.readAsDataURL(input.files[0]);
+      async function deleteItem(id) {
+        const confirm = await Swal.fire({
+          title: "Hapus?",
+          text: "Data hilang permanen!",
+          icon: "warning",
+          showCancelButton: true,
+        });
+        if (confirm.isConfirmed) {
+          await runQuery("DELETE FROM projek WHERE id = ?", [id]);
+          loadData();
+          Swal.fire("Terhapus", "Data berhasil dihapus", "success");
         }
       }
 
-      function resetPreviews() {
-        for (let i = 1; i <= 5; i++) {
-          const img = document.getElementById(`prev-img${i}`);
-          const icon = document.querySelector(
-            `#wrapper-img${i} .placeholder-icon`,
-          );
-          if (img) {
-            img.src = "";
-            img.style.display = "none";
+      function openModal(isEdit = false) {
+        try {
+          const form = document.getElementById("projekForm");
+          if (!form) return;
+
+          if (!isEdit) {
+            // Reset Form Input
+            form.reset();
+            document.getElementById("projekId").value = "";
+
+            // Reset Quill Editors
+            if (quillTitle) quillTitle.setContents([]);
+            if (quillDeskripsi) quillDeskripsi.setContents([]);
+            if (quillFitur) quillFitur.setContents([]);
+
+            // Reset Tech Stack Container
+            const techContainer = document.getElementById("tech-container");
+            if (techContainer) {
+              techContainer.innerHTML = "";
+              addTechField(); // Tambah satu field kosong
+            }
+
+            // Reset Semua Preview Gambar
+            for (let i = 1; i <= 5; i++) {
+              const img = document.getElementById(`prev-img${i}`);
+              const delBtn = document.getElementById(`del-img${i}`);
+              const icon = document.querySelector(
+                `#box-img${i} .placeholder-icon`,
+              );
+
+              if (img) img.style.display = "none";
+              if (delBtn) delBtn.style.display = "none";
+              if (icon) icon.style.display = "block";
+            }
+
+            document.getElementById("modalTitle").innerText = "Tambah Projek";
           }
-          if (icon) icon.style.display = "block";
+
+          // Tampilkan Modal
+          if (myModal) {
+            myModal.show();
+          } else {
+            // Jika instance myModal hilang, inisialisasi ulang
+            myModal = new bootstrap.Modal(
+              document.getElementById("projekModal"),
+            );
+            myModal.show();
+          }
+        } catch (error) {
+          console.error("Gagal membuka modal:", error);
         }
       }
     </script>
