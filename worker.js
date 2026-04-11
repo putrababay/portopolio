@@ -1,114 +1,87 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname;
+    const method = request.method;
 
-    // Header CORS agar admin.html bisa mengakses API
+    // --- 1. SETTING HEADER CORS (Agar bisa diakses dari index.html/admin.html) ---
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
-    // Handle Preflight Request untuk browser
-    if (request.method === "OPTIONS") {
+    // --- 2. HANDLE PREFLIGHT OPTIONS (Penting untuk Browser) ---
+    if (method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // --- ROUTING API ---
+    // --- 3. LOGIKA ROUTING ---
 
-    // 1. GET: Ambil Semua Data Projek
-    if (url.pathname === "/api/projek" && request.method === "GET") {
+    // ROUTE: Ambil Data Projek (Untuk index.html & Tabel Admin)
+    if (path === "/api/projects" && method === "GET") {
       try {
         const { results } = await env.DB.prepare(
-          "SELECT * FROM projek ORDER BY id DESC",
+          "SELECT * FROM projects ORDER BY id DESC",
         ).all();
-
-        // Konversi BLOB img1 ke Base64 agar muncul di tabel admin
-        const processed = results.map((row) => ({
-          ...row,
-          img1: row.img1
-            ? btoa(String.fromCharCode(...new Uint8Array(row.img1)))
-            : null,
-        }));
-
-        return new Response(JSON.stringify(processed), {
+        return new Response(JSON.stringify({ success: true, data: results }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: corsHeaders,
-        });
+        return new Response(
+          JSON.stringify({ success: false, message: err.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
     }
 
-    // 2. POST: Tambah Data Projek Baru (Multipart Form Data)
-    if (url.pathname === "/api/projek" && request.method === "POST") {
+    // ROUTE: Simpan/Tambah Projek (Untuk Form admin.html)
+    if (path === "/api/projects" && method === "POST") {
       try {
-        const formData = await request.formData();
+        const data = await request.json();
 
-        // Helper untuk convert file upload ke ArrayBuffer (BLOB)
-        const getFile = async (key) => {
-          const file = formData.get(key);
-          if (file && typeof file !== "string" && file.size > 0) {
-            return await file.arrayBuffer();
-          }
-          return null;
-        };
-
-        const query = `INSERT INTO projek (nm_projek, title, deskripsi, fitur, teknologi, link, youtube, img1, img2, img3, img4, img5) 
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-        await env.DB.prepare(query)
+        // Logika INSERT ke D1 Anda
+        const info = await env.DB.prepare(
+          "INSERT INTO projects (title, deskripsi, tech_stack, images) VALUES (?, ?, ?, ?)",
+        )
           .bind(
-            formData.get("nm_projek") || "",
-            formData.get("title") || "",
-            formData.get("deskripsi") || "",
-            formData.get("fitur") || "",
-            formData.get("teknologi") || "[]", // Simpan JSON array teknologi
-            formData.get("link") || "",
-            formData.get("youtube") || "",
-            await getFile("img1"),
-            await getFile("img2"),
-            await getFile("img3"),
-            await getFile("img4"),
-            await getFile("img5"),
+            data.title,
+            data.deskripsi,
+            JSON.stringify(data.tech_stack),
+            JSON.stringify(data.images),
           )
           .run();
 
-        return new Response(JSON.stringify({ success: true }), {
-          status: 201,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Projek berhasil disimpan",
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: corsHeaders,
-        });
+        return new Response(
+          JSON.stringify({ success: false, message: err.message }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
     }
 
-    // 3. DELETE: Hapus Projek berdasarkan ID
-    if (url.pathname === "/api/projek" && request.method === "DELETE") {
-      try {
-        const id = url.searchParams.get("id");
-        if (!id) throw new Error("ID projek diperlukan");
-
-        await env.DB.prepare("DELETE FROM projek WHERE id = ?").bind(id).run();
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: corsHeaders,
-        });
-      }
-    }
-
-    // Endpoint default jika panggil root URL
-    return new Response("API D1 Projek Cloudflare Aktif!", {
-      headers: corsHeaders,
-    });
+    // Jika path tidak ditemukan
+    return new Response(
+      JSON.stringify({ success: false, message: "Endpoint tidak ditemukan" }),
+      {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   },
 };
