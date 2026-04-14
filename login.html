@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login Admin CCTV (D1 HTML)</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+
+    <style>
+      /* --- STYLE SAMA PERSIS DENGAN LOGIN.PHP --- */
+      body {
+        background: #eef2f7;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .login-card {
+        width: 100%;
+        max-width: 400px;
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        background: white;
+        overflow: hidden;
+      }
+      .nav-tabs {
+        border-bottom: none;
+        background: #f8f9fa;
+      }
+      .nav-tabs .nav-link {
+        width: 50%;
+        text-align: center;
+        border: none;
+        border-bottom: 3px solid transparent;
+        color: #adb5bd;
+        font-weight: 600;
+        padding: 15px;
+        cursor: pointer;
+        border-radius: 0;
+      }
+      .nav-tabs .nav-link:hover {
+        color: #495057;
+      }
+      .nav-tabs .nav-link.active {
+        background: white;
+        color: #0d6efd;
+        border-bottom: 3px solid #0d6efd;
+      }
+      #patternContainer {
+        position: relative;
+        width: 260px;
+        height: 260px;
+        margin: 0 auto;
+        touch-action: none;
+        user-select: none;
+      }
+      .pattern-dot {
+        width: 20px;
+        height: 20px;
+        background: #dee2e6;
+        border-radius: 50%;
+        position: absolute;
+        transform: translate(-50%, -50%);
+        transition: 0.3s;
+        z-index: 2;
+      }
+      .pattern-dot.active {
+        background: #0d6efd;
+        box-shadow: 0 0 0 10px rgba(13, 110, 253, 0.2);
+      }
+      svg.pattern-lines {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+      }
+      line {
+        stroke: #0d6efd;
+        stroke-width: 4;
+        stroke-linecap: round;
+        opacity: 0.8;
+      }
+      .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        z-index: 10;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="card login-card">
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-border text-primary mb-2" role="status"></div>
+        <span class="text-muted small">Memverifikasi...</span>
+      </div>
+
+      <div class="nav nav-tabs" id="loginTab" role="tablist">
+        <button class="nav-link active" id="tab-pin" onclick="switchTab('pin')">
+          <i class="fas fa-th"></i> PIN Angka
+        </button>
+        <button
+          class="nav-link"
+          id="tab-pattern"
+          onclick="switchTab('pattern')">
+          <i class="fas fa-draw-polygon"></i> Pola Gambar
+        </button>
+      </div>
+
+      <div class="card-body p-4 text-center">
+        <h4 class="fw-bold mb-1" id="titleText">Masukkan PIN</h4>
+        <small class="text-muted d-block mb-4"
+          >Verifikasi identitas Anda (D1 Database)</small
+        >
+
+        <div
+          id="errorAlert"
+          class="alert alert-danger py-2 small shadow-sm"
+          style="display: none">
+          <i class="fas fa-exclamation-circle"></i> <span id="errorText"></span>
+        </div>
+
+        <form id="formPin" onsubmit="handleLogin(event, 'pin')">
+          <div class="mb-4 mt-3">
+            <input
+              type="password"
+              id="pinInput"
+              class="form-control form-control-lg text-center fs-2 fw-bold"
+              placeholder="••••••"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              autocomplete="off"
+              required
+              autofocus
+              style="letter-spacing: 5px" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100 btn-lg shadow-sm">
+            Masuk <i class="fas fa-arrow-right ms-2"></i>
+          </button>
+        </form>
+
+        <form
+          id="formPattern"
+          style="display: none"
+          onsubmit="handleLogin(event, 'pattern')">
+          <input type="hidden" id="patternInput" />
+          <div id="patternContainer" class="my-3">
+            <svg class="pattern-lines"></svg>
+          </div>
+          <p class="text-muted small mb-3" id="patternStatus">
+            Hubungkan minimal 3 titik
+          </p>
+          <button
+            type="button"
+            class="btn btn-outline-secondary btn-sm w-100"
+            onclick="resetPattern()">
+            Reset Pola
+          </button>
+        </form>
+      </div>
+      <div class="card-footer bg-light text-center py-3 border-0">
+        <small class="text-muted">&copy; 2025 Admin D1 System</small>
+      </div>
+    </div>
+
+    <script>
+      // ==========================================
+      // KONFIGURASI API & SESSION
+      // ==========================================
+      const WORKER_URL = "https://d1-rest.bayuanggara-bp.workers.dev";
+
+      // 1. Cek Redirection (Wajib konsisten menggunakan localStorage)
+      if (localStorage.getItem("admin_logged_in") === "true") {
+        window.location.replace("admin.html");
+      }
+
+      // ==========================================
+      // LOGIKA LOGIN
+      // ==========================================
+      async function handleLogin(e, type) {
+        e.preventDefault();
+        showLoading(true);
+        showError(false);
+
+        let credential = "";
+        if (type === "pin") {
+          credential = document.getElementById("pinInput").value;
+        } else {
+          // Pola sudah diisi oleh fungsi endDraw
+          credential = document.getElementById("patternInput").value;
+        }
+
+        // Periksa apakah credential kosong setelah di-capture
+        if (!credential) {
+          showLoading(false);
+          showError(true, "Masukkan PIN/Pola Anda.");
+          return;
+        }
+
+        try {
+          // 1. Ambil data user dari Cloudflare D1
+          const query = `SELECT * FROM admin_access WHERE type = '${type}'`;
+          const users = await runQuery(query);
+
+          let loginSuccess = false;
+          let adminName = "Admin";
+
+          // 2. Logic "Akun Darurat" (Jika DB Kosong atau Reset)
+          // Default PIN: 123456
+          if (
+            (!users || users.length === 0) &&
+            type === "pin" &&
+            credential === "123456"
+          ) {
+            loginSuccess = true;
+            adminName = "Super Admin (Darurat)";
+          }
+
+          // 3. Verifikasi Password dengan bcrypt.js (Wajib dcodeIO.bcrypt)
+          if (users && users.length > 0) {
+            for (let user of users) {
+              // PERBAIKAN: Memastikan menggunakan dcodeIO.bcrypt
+              if (dcodeIO.bcrypt.compareSync(credential, user.credential)) {
+                loginSuccess = true;
+                adminName = user.name;
+                break;
+              }
+            }
+          }
+
+          if (loginSuccess) {
+            // Simpan sesi di localStorage
+            localStorage.setItem("admin_logged_in", "true");
+            localStorage.setItem("admin_name", adminName);
+            window.location.replace("admin.html");
+          } else {
+            showError(true, type === "pin" ? "PIN Salah!" : "Pola Salah!");
+            if (type === "pattern") resetPattern();
+          }
+        } catch (err) {
+          console.error(err);
+          showError(true, "Gagal koneksi ke server D1 atau kesalahan library.");
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // Fungsi Request ke Worker
+      async function runQuery(sql) {
+        const response = await fetch(WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sql: sql }),
+        });
+        // Handle variasi struktur return D1
+        const json = await response.json();
+        if (json.results) return json.results;
+        if (json.result) return json.result;
+        if (Array.isArray(json)) return json;
+        return [];
+      }
+
+      // ==========================================
+      // UI HELPERS (Sama seperti sebelumnya)
+      // ==========================================
+      function showLoading(show) {
+        document.getElementById("loadingOverlay").style.display = show
+          ? "flex"
+          : "none";
+      }
+      function showError(show, msg = "") {
+        const el = document.getElementById("errorAlert");
+        el.style.display = show ? "block" : "none";
+        if (show) document.getElementById("errorText").innerText = msg;
+      }
+
+      function switchTab(type) {
+        showError(false);
+        document
+          .querySelectorAll(".nav-link")
+          .forEach((el) => el.classList.remove("active"));
+        if (type === "pin") {
+          document.getElementById("tab-pin").classList.add("active");
+          document.getElementById("formPin").style.display = "block";
+          document.getElementById("formPattern").style.display = "none";
+          document.getElementById("titleText").innerText = "Masukkan PIN";
+          setTimeout(() => document.getElementById("pinInput").focus(), 100);
+        } else {
+          document.getElementById("tab-pattern").classList.add("active");
+          document.getElementById("formPin").style.display = "none";
+          document.getElementById("formPattern").style.display = "block";
+          document.getElementById("titleText").innerText = "Gambar Pola";
+          resetPattern();
+        }
+      }
+
+      // --- PATTERN LOCK LOGIC ---
+      const container = document.getElementById("patternContainer");
+      const svg = container.querySelector("svg");
+      const input = document.getElementById("patternInput");
+      const statusText = document.getElementById("patternStatus");
+      let isDrawing = false;
+      let pattern = [];
+
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          let dot = document.createElement("div");
+          dot.className = "pattern-dot";
+          dot.dataset.val = i * 3 + j + 1;
+          dot.style.top = 20 + i * 30 + "%";
+          dot.style.left = 20 + j * 30 + "%";
+          container.appendChild(dot);
+        }
+      }
+
+      function getDotCenter(dot) {
+        return { x: dot.offsetLeft, y: dot.offsetTop };
+      }
+      function startDraw(e) {
+        e.preventDefault();
+        isDrawing = true;
+        resetPattern();
+        checkHit(e);
+      }
+      function moveDraw(e) {
+        e.preventDefault();
+        if (!isDrawing) return;
+        checkHit(e);
+      }
+      function endDraw(e) {
+        if (!isDrawing) return;
+        isDrawing = false;
+        if (pattern.length >= 3) {
+          statusText.innerText = "Memeriksa...";
+          input.value = pattern.join(""); // Simpan pola sebagai string (ex: "1234")
+
+          // PERBAIKAN: Panggil handleLogin secara langsung
+          // Ini memastikan fungsi 'handleLogin' menerima sinyal dari pola yang baru di-capture
+          handleLogin(new Event("submit"), "pattern");
+        } else {
+          statusText.innerText = "Pola terlalu pendek. Ulangi.";
+          setTimeout(resetPattern, 500);
+        }
+      }
+      function checkHit(e) {
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        let el = document.elementFromPoint(clientX, clientY);
+        if (el && el.classList.contains("pattern-dot")) {
+          let val = el.dataset.val;
+          if (!pattern.includes(val)) {
+            pattern.push(val);
+            el.classList.add("active");
+            if (pattern.length > 1) {
+              let prevEl = container.querySelector(
+                `[data-val="${pattern[pattern.length - 2]}"]`
+              );
+              drawLine(prevEl, el);
+            }
+          }
+        }
+      }
+      function drawLine(dot1, dot2) {
+        let p1 = getDotCenter(dot1),
+          p2 = getDotCenter(dot2);
+        let line = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "line"
+        );
+        line.setAttribute("x1", p1.x);
+        line.setAttribute("y1", p1.y);
+        line.setAttribute("x2", p2.x);
+        line.setAttribute("y2", p2.y);
+        svg.appendChild(line);
+      }
+      function resetPattern() {
+        pattern = [];
+        input.value = "";
+        container
+          .querySelectorAll(".pattern-dot")
+          .forEach((d) => d.classList.remove("active"));
+        svg.innerHTML = "";
+        statusText.innerText = "Hubungkan minimal 3 titik";
+      }
+      container.addEventListener("mousedown", startDraw);
+      container.addEventListener("mousemove", moveDraw);
+      document.addEventListener("mouseup", endDraw);
+      container.addEventListener("touchstart", startDraw, { passive: false });
+      container.addEventListener("touchmove", moveDraw, { passive: false });
+      document.addEventListener("touchend", endDraw);
+    </script>
+  </body>
+</html>

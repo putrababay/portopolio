@@ -121,6 +121,9 @@
           >
             <i class="bi bi-plus-lg me-2"></i>Tambah
           </button>
+          <button onclick="logout()" class="btn btn-danger w-100 btn-sm">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </button>
         </div>
       </div>
 
@@ -315,6 +318,14 @@
 
     <script>
       const WORKER_URL = "https://d1-rest.bayuanggara-bp.workers.dev";
+      // --- AUTH CHECK ---
+      // PERBAIKAN PENTING: Mengaktifkan pengecekan akses.
+      // Jika admin_logged_in tidak ada, redirect ke login.html
+      if (!localStorage.getItem("admin_logged_in")) {
+        // Menggunakan replace() untuk mencegah tombol back kembali ke admin.html
+        window.location.replace("login.html");
+      }
+
       let quillTitle, quillDeskripsi, quillFitur, myModal;
 
       document.addEventListener("DOMContentLoaded", () => {
@@ -697,6 +708,13 @@
               ? ""
               : "none";
         }
+      }
+
+      function logout() {
+        localStorage.removeItem("admin_logged_in");
+        // Menggunakan replace() untuk mengganti histori browser.
+        // Ini memastikan tombol back tidak berfungsi untuk kembali ke admin.html.
+        window.location.replace("login.html");
       }
     </script>
   </body>
