@@ -316,10 +316,12 @@
         quillTitle = new Quill("#editor-title", qConfig);
         quillDeskripsi = new Quill("#editor-deskripsi", qConfig);
         quillFitur = new Quill("#editor-fitur", qConfig);
+
         loadData();
         document.getElementById("projekForm").onsubmit = handleFormSubmit;
       });
 
+      // --- DATABASE HANDLER ---
       async function runQuery(sql, params = []) {
         try {
           const res = await fetch(WORKER_URL, {
@@ -330,12 +332,15 @@
           const json = await res.json();
           return json.success ? json.results : null;
         } catch (e) {
+          console.error("Query Error:", e);
           return null;
         }
       }
 
+      // Helper: Ubah Buffer/Array ke Base64 untuk tampilan
       function arrayBufferToBase64(buffer) {
         if (!buffer) return null;
+        // D1 mengembalikan BLOB sebagai objek {data: [...]} atau array langsung
         let bytes = new Uint8Array(buffer.data || buffer);
         let binary = "";
         for (let i = 0; i < bytes.byteLength; i++)
@@ -343,6 +348,21 @@
         return btoa(binary);
       }
 
+      // Helper: Ubah File Upload ke Array Byte agar kompatibel dengan BLOB D1
+      async function fileToByteArray(file) {
+        return new Promise((resolve, reject) => {
+          if (!file || !(file instanceof File)) return resolve(null);
+          const reader = new FileReader();
+          reader.onload = () => {
+            const uint8 = new Uint8Array(reader.result);
+            resolve(Array.from(uint8));
+          };
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      // --- CRUD OPERATIONS ---
       async function loadData() {
         const results = await runQuery("SELECT * FROM projek ORDER BY id DESC");
         const tbody = document.getElementById("tableBody");
@@ -355,38 +375,164 @@
             const techs = JSON.parse(item.teknologi || "[]");
             const b64 = arrayBufferToBase64(item.img1);
             return `
-            <tr>
-              <td class="ps-4 text-muted small">${index + 1}</td>
-              <td class="fw-bold text-primary">${item.nm_projek}</td>
-              <td class="small text-muted">${item.tahun || "-"}</td>
-              <td><div class="small text-truncate" style="max-width:150px">${item.title.replace(/<[^>]*>?/gm, "")}</div></td>
-              <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1 small">${t}</span>`).join("")}</td>
-              <td>
-                <div class="d-flex gap-1">
-                    ${item.link ? `<a href="${item.link}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Demo"><i class="bi bi-globe"></i></a>` : ""}
-                    ${item.youtube ? `<a href="https://youtube.com/watch?v=${item.youtube}" target="_blank" class="btn btn-sm btn-outline-danger" title="YouTube"><i class="bi bi-youtube"></i></a>` : ""}
-                </div>
-              </td>
-              <td>${b64 ? `<img src="data:image/jpeg;base64,${b64}" class="rounded border shadow-sm" style="width:40px;height:40px;object-fit:cover;cursor:pointer" onclick="showGallery(${item.id})">` : "-"}</td>
-              <td class="text-center">
-                <div class="btn-group">
-                  <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})"><i class="bi bi-pencil"></i></button>
-                  <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})"><i class="bi bi-trash"></i></button>
-                </div>
-              </td>
-            </tr>`;
+        <tr>
+          <td class="ps-4 text-muted small">${index + 1}</td>
+          <td class="fw-bold text-primary">${item.nm_projek}</td>
+          <td class="small text-muted">${item.tahun || "-"}</td>
+          <td><div class="small text-truncate" style="max-width:150px">${(item.title || "").replace(/<[^>]*>?/gm, "")}</div></td>
+          <td>${techs.map((t) => `<span class="badge bg-light text-dark border me-1 small">${t}</span>`).join("")}</td>
+          <td>
+            <div class="d-flex gap-1">
+                ${item.link ? `<a href="${item.link}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-globe"></i></a>` : ""}
+                ${item.youtube ? `<a href="https://youtube.com/watch?v=${item.youtube}" target="_blank" class="btn btn-sm btn-outline-danger"><i class="bi bi-youtube"></i></a>` : ""}
+            </div>
+          </td>
+          <td>${b64 ? `<img src="data:image/jpeg;base64,${b64}" class="rounded border shadow-sm" style="width:40px;height:40px;object-fit:cover;cursor:pointer" onclick="showGallery(${item.id})">` : "-"}</td>
+          <td class="text-center">
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})"><i class="bi bi-trash"></i></button>
+            </div>
+          </td>
+        </tr>`;
           })
           .join("");
       }
 
-      // --- POPUP GALLERY (TABEL) ---
-      async function showGallery(id) {
+      async function handleFormSubmit(e) {
+        e.preventDefault();
         Swal.fire({
-          title: "Memuat Galeri...",
+          title: "Menyimpan...",
+          allowOutsideClick: false,
           didOpen: () => Swal.showLoading(),
         });
+
+        const form = e.target;
+        const id = document.getElementById("projekId").value;
+        const teknologi = JSON.stringify(
+          Array.from(document.querySelectorAll(".tech-input")).map(
+            (i) => i.value,
+          ),
+        );
+
+        // Proses semua file gambar menjadi Byte Array
+        const imgBlobs = [];
+        for (let i = 1; i <= 5; i++) {
+          const fileInput = document.getElementById(`file-img${i}`);
+          imgBlobs[i] = await fileToByteArray(fileInput.files[0]);
+        }
+
+        let sql, params;
+        if (id) {
+          // UPDATE DATA
+          sql = `UPDATE projek SET nm_projek=?, tahun=?, title=?, deskripsi=?, fitur=?, link=?, youtube=?, teknologi=?`;
+          params = [
+            form.nm_projek.value,
+            form.tahun.value,
+            quillTitle.root.innerHTML,
+            quillDeskripsi.root.innerHTML,
+            quillFitur.root.innerHTML,
+            form.link.value,
+            form.youtube.value,
+            teknologi,
+          ];
+
+          // Update BLOB hanya jika ada file baru yang dipilih
+          for (let i = 1; i <= 5; i++) {
+            if (imgBlobs[i]) {
+              sql += `, img${i}=?`;
+              params.push(imgBlobs[i]);
+            }
+          }
+          sql += ` WHERE id=?`;
+          params.push(id);
+        } else {
+          // INSERT DATA
+          sql = `INSERT INTO projek (nm_projek, tahun, title, deskripsi, fitur, link, youtube, teknologi, img1, img2, img3, img4, img5) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+          params = [
+            form.nm_projek.value,
+            form.tahun.value,
+            quillTitle.root.innerHTML,
+            quillDeskripsi.root.innerHTML,
+            quillFitur.root.innerHTML,
+            form.link.value,
+            form.youtube.value,
+            teknologi,
+            imgBlobs[1],
+            imgBlobs[2],
+            imgBlobs[3],
+            imgBlobs[4],
+            imgBlobs[5],
+          ];
+        }
+
+        const success = await runQuery(sql, params);
+        if (success) {
+          Swal.fire(
+            "Berhasil",
+            "Data telah sinkron dengan database",
+            "success",
+          );
+          myModal.hide();
+          loadData();
+        } else {
+          Swal.fire("Gagal", "Terjadi kesalahan saat menyimpan data", "error");
+        }
+      }
+
+      async function editItem(id) {
         const res = await runQuery("SELECT * FROM projek WHERE id = ?", [id]);
-        Swal.close();
+        if (!res || res.length === 0) return;
+        const d = res[0];
+
+        openModal(); // Reset form & buka modal
+        document.getElementById("projekId").value = d.id;
+        document.getElementById("projekForm").nm_projek.value = d.nm_projek;
+        document.getElementById("projekForm").tahun.value = d.tahun || "";
+        quillTitle.root.innerHTML = d.title || "";
+        quillDeskripsi.root.innerHTML = d.deskripsi || "";
+        quillFitur.root.innerHTML = d.fitur || "";
+        document.getElementById("projekForm").link.value = d.link || "";
+        document.getElementById("projekForm").youtube.value = d.youtube || "";
+
+        document.getElementById("tech-container").innerHTML = "";
+        const techs = JSON.parse(d.teknologi || "[]");
+        if (techs.length > 0) techs.forEach((t) => addTechField(t));
+        else addTechField();
+
+        for (let i = 1; i <= 5; i++) {
+          const b64 = arrayBufferToBase64(d[`img${i}`]);
+          if (b64) {
+            const img = document.getElementById(`prev-img${i}`);
+            img.src = `data:image/jpeg;base64,${b64}`;
+            img.style.display = "block";
+            document.getElementById(`actions-img${i}`).style.display = "flex";
+            document.querySelector(
+              `#box-img${i} .placeholder-icon`,
+            ).style.display = "none";
+          }
+        }
+      }
+
+      async function deleteItem(id) {
+        const result = await Swal.fire({
+          title: "Hapus projek?",
+          text: "Data yang dihapus tidak bisa dikembalikan!",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#d33",
+          confirmButtonText: "Ya, Hapus!",
+        });
+
+        if (result.isConfirmed) {
+          await runQuery("DELETE FROM projek WHERE id = ?", [id]);
+          loadData();
+        }
+      }
+
+      // --- UI HELPERS (GALERI & PREVIEW) ---
+      async function showGallery(id) {
+        const res = await runQuery("SELECT * FROM projek WHERE id = ?", [id]);
         if (!res || res.length === 0) return;
         const d = res[0];
         const imgs = [];
@@ -403,57 +549,13 @@
           showConfirmButton: false,
           showCloseButton: true,
           html: `
-            <div class="mb-3 bg-light rounded p-2 border"><img id="gal-main" src="${imgs[0]}" class="img-fluid rounded" style="max-height:450px;object-fit:contain"></div>
-            <div class="d-flex justify-content-center gap-2 overflow-auto p-2">
-              ${imgs.map((s, i) => `<img src="${s}" class="thumb-img rounded border ${i == 0 ? "active" : ""}" style="width:60px;height:45px;object-fit:cover;cursor:pointer" onclick="document.getElementById('gal-main').src=this.src; document.querySelectorAll('.thumb-img').forEach(t=>t.classList.remove('active')); this.classList.add('active')">`).join("")}
-            </div>`,
+        <div class="mb-3 bg-light rounded p-2 border"><img id="gal-main" src="${imgs[0]}" class="img-fluid rounded" style="max-height:450px;object-fit:contain"></div>
+        <div class="d-flex justify-content-center gap-2 overflow-auto p-2">
+          ${imgs.map((s, i) => `<img src="${s}" class="thumb-img rounded border ${i == 0 ? "active" : ""}" style="width:60px;height:45px;object-fit:cover;cursor:pointer" onclick="document.getElementById('gal-main').src=this.src; document.querySelectorAll('.thumb-img').forEach(t=>t.classList.remove('active')); this.classList.add('active')">`).join("")}
+        </div>`,
         });
       }
 
-      // --- FULLSCREEN PREVIEW (FORM) ---
-      function viewFullScreen(idx, e) {
-        if (e) e.stopPropagation();
-        const src = document.getElementById(`prev-img${idx}`).src;
-        if (!src) return;
-        Swal.fire({
-          html: `<img src="${src}" class="img-fluid rounded">`,
-          showConfirmButton: false,
-          background: "transparent",
-          width: "90%",
-        });
-      }
-
-      // --- PENCARIAN ---
-      function filterTable() {
-        const input = document
-          .getElementById("searchInput")
-          .value.toUpperCase();
-        const tbody = document.getElementById("tableBody");
-        const rows = tbody.getElementsByTagName("tr");
-        let found = false;
-        const existingNoData = document.getElementById("no-data-row");
-        if (existingNoData) existingNoData.remove();
-
-        for (let i = 0; i < rows.length; i++) {
-          const tdName = rows[i].getElementsByTagName("td")[1];
-          if (tdName) {
-            if (tdName.textContent.toUpperCase().indexOf(input) > -1) {
-              rows[i].style.display = "";
-              found = true;
-            } else {
-              rows[i].style.display = "none";
-            }
-          }
-        }
-        if (!found && rows.length > 0) {
-          tbody.insertAdjacentHTML(
-            "beforeend",
-            `<tr id="no-data-row"><td colspan="8" class="text-center p-5 text-muted">Data tidak ditemukan.</td></tr>`,
-          );
-        }
-      }
-
-      // --- LOGIC FORM LAINNYA ---
       function triggerFileInput(idx) {
         if (document.getElementById(`prev-img${idx}`).style.display !== "block")
           document.getElementById(`file-img${idx}`).click();
@@ -506,54 +608,19 @@
         myModal.show();
       }
 
-      async function editItem(id) {
-        const res = await runQuery("SELECT * FROM projek WHERE id = ?", [id]);
-        if (!res) return;
-        const d = res[0];
-        openModal();
-        document.getElementById("projekId").value = d.id;
-        document.getElementById("projekForm").nm_projek.value = d.nm_projek;
-        document.getElementById("projekForm").tahun.value = d.tahun || "";
-        quillTitle.root.innerHTML = d.title || "";
-        quillDeskripsi.root.innerHTML = d.deskripsi || "";
-        quillFitur.root.innerHTML = d.fitur || "";
-        document.getElementById("projekForm").link.value = d.link || "";
-        document.getElementById("projekForm").youtube.value = d.youtube || "";
-        document.getElementById("tech-container").innerHTML = "";
-        JSON.parse(d.teknologi || "[]").forEach((t) => addTechField(t));
-        for (let i = 1; i <= 5; i++) {
-          const b64 = arrayBufferToBase64(d[`img${i}`]);
-          if (b64) {
-            const img = document.getElementById(`prev-img${i}`);
-            img.src = `data:image/jpeg;base64,${b64}`;
-            img.style.display = "block";
-            document.getElementById(`actions-img${i}`).style.display = "flex";
-            document.querySelector(
-              `#box-img${i} .placeholder-icon`,
-            ).style.display = "none";
-          }
-        }
-      }
-
-      async function handleFormSubmit(e) {
-        e.preventDefault();
-        Swal.fire({
-          title: "Menyimpan...",
-          allowOutsideClick: false,
-          didOpen: () => Swal.showLoading(),
-        });
-        // Simulasikan berhasil simpan karena logic simpan Anda ada di sisi Worker
-        setTimeout(() => {
-          Swal.fire("Berhasil", "Data telah disimpan", "success");
-          myModal.hide();
-          loadData();
-        }, 1000);
-      }
-
-      async function deleteItem(id) {
-        if (confirm("Hapus projek ini?")) {
-          await runQuery("DELETE FROM projek WHERE id = ?", [id]);
-          loadData();
+      function filterTable() {
+        const input = document
+          .getElementById("searchInput")
+          .value.toUpperCase();
+        const rows = document
+          .getElementById("tableBody")
+          .getElementsByTagName("tr");
+        for (let i = 0; i < rows.length; i++) {
+          const td = rows[i].getElementsByTagName("td")[1];
+          if (td)
+            rows[i].style.display = td.textContent.toUpperCase().includes(input)
+              ? ""
+              : "none";
         }
       }
     </script>
