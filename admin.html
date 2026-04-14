@@ -318,11 +318,9 @@
 
     <script>
       const WORKER_URL = "https://d1-rest.bayuanggara-bp.workers.dev";
+
       // --- AUTH CHECK ---
-      // PERBAIKAN PENTING: Mengaktifkan pengecekan akses.
-      // Jika admin_logged_in tidak ada, redirect ke login.html
       if (!localStorage.getItem("admin_logged_in")) {
-        // Menggunakan replace() untuk mencegah tombol back kembali ke admin.html
         window.location.replace("login.html");
       }
 
@@ -355,15 +353,24 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sql, params }),
           });
+
+          // Penanganan Error 503 (Service Unavailable / Payload Too Large)
+          if (res.status === 503) {
+            throw new Error(
+              "Server sibuk atau ukuran data terlalu besar (503).",
+            );
+          }
+
           const json = await res.json();
           return json.success ? json.results : null;
         } catch (e) {
           console.error("Query Error:", e);
+          Swal.fire("Error", e.message || "Gagal menghubungi server.", "error");
           return null;
         }
       }
 
-      // Helper: Ubah Buffer/Array ke Base64 untuk tampilan
+      // Helper: Ubah Buffer ke Base64
       function arrayBufferToBase64(buffer) {
         if (!buffer) return null;
         let bytes = new Uint8Array(buffer.data || buffer);
@@ -375,8 +382,7 @@
 
       /**
        * FUNGSI KOMPRESI GAMBAR
-       * Mengubah file menjadi format JPEG dengan lebar max 1200px dan kualitas 0.7
-       * Target ukuran biasanya < 300KB
+       * Target: < 500KB per image
        */
       async function compressImage(file) {
         return new Promise((resolve) => {
@@ -390,8 +396,7 @@
               let width = img.width;
               let height = img.height;
 
-              // Batasi resolusi maksimal (misal lebar 1200px) untuk menghemat storage D1
-              const MAX_WIDTH = 1200;
+              const MAX_WIDTH = 1000; // Diturunkan sedikit dari 1200 untuk stabilitas D1
               if (width > MAX_WIDTH) {
                 height = Math.round((height * MAX_WIDTH) / width);
                 width = MAX_WIDTH;
@@ -402,10 +407,8 @@
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
 
-              // Export ke Blob dengan kualitas 0.7 (70%)
               canvas.toBlob(
                 (blob) => {
-                  // Ubah blob ke Array Byte untuk SQLite BLOB
                   const readerBlob = new FileReader();
                   readerBlob.readAsArrayBuffer(blob);
                   readerBlob.onloadend = () => {
@@ -414,7 +417,7 @@
                   };
                 },
                 "image/jpeg",
-                0.7,
+                0.6, // Kualitas 60% untuk memastikan muat banyak
               );
             };
           };
@@ -460,22 +463,7 @@
           .join("");
       }
 
-      // --- TAMBAHAN: FUNGSI FULLSCREEN VIEW ---
-      function viewFullScreen(idx, e) {
-        if (e) e.stopPropagation();
-        const img = document.getElementById(`prev-img${idx}`);
-        if (!img || !img.src || img.style.display === "none") return;
-
-        Swal.fire({
-          html: `<img src="${img.src}" class="img-fluid rounded shadow-sm">`,
-          showConfirmButton: false,
-          background: "transparent",
-          width: "90%",
-          showCloseButton: true,
-        });
-      }
-
-      // --- PERBAIKAN HANDLE FORM SUBMIT ---
+      // --- PERBAIKAN LOGIKA SIMPAN ---
       async function handleFormSubmit(e) {
         e.preventDefault();
         Swal.fire({
@@ -493,21 +481,18 @@
         );
 
         const imgBlobs = {};
-        const imgDeletions = []; // Untuk melacak slot mana yang dihapus
-
         for (let i = 1; i <= 5; i++) {
           const fileInput = document.getElementById(`file-img${i}`);
           const previewImg = document.getElementById(`prev-img${i}`);
 
           if (fileInput && fileInput.files.length > 0) {
-            // Ada file baru
+            // Upload file baru
             imgBlobs[`img${i}`] = await compressImage(fileInput.files[0]);
           } else if (previewImg.style.display === "none" || !previewImg.src) {
-            // Slot dikosongkan (tombol hapus diklik)
+            // Gambar dihapus (preview disembunyikan user)
             imgBlobs[`img${i}`] = null;
-            imgDeletions.push(i);
           } else {
-            // Gambar lama tetap dipertahankan
+            // Pertahankan gambar lama
             imgBlobs[`img${i}`] = "KEEP_OLD";
           }
         }
@@ -516,7 +501,6 @@
         let params = [];
 
         if (id) {
-          // --- LOGIC UPDATE ---
           sql = `UPDATE projek SET nm_projek=?, tahun=?, title=?, deskripsi=?, fitur=?, link=?, youtube=?, teknologi=?`;
           params = [
             form.nm_projek.value,
@@ -532,13 +516,12 @@
           for (let i = 1; i <= 5; i++) {
             if (imgBlobs[`img${i}`] !== "KEEP_OLD") {
               sql += `, img${i} = ?`;
-              params.push(imgBlobs[`img${i}`]); // Bisa berupa byte array atau null untuk menghapus
+              params.push(imgBlobs[`img${i}`]);
             }
           }
           sql += ` WHERE id = ?`;
           params.push(id);
         } else {
-          // --- LOGIC INSERT ---
           sql = `INSERT INTO projek (nm_projek, tahun, title, deskripsi, fitur, link, youtube, teknologi, img1, img2, img3, img4, img5) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
           params = [
             form.nm_projek.value,
@@ -562,8 +545,6 @@
           Swal.fire("Berhasil", "Data berhasil diperbarui", "success");
           myModal.hide();
           loadData();
-        } else {
-          Swal.fire("Gagal", "Gagal menyimpan ke database", "error");
         }
       }
 
@@ -581,6 +562,7 @@
         quillFitur.root.innerHTML = d.fitur || "";
         document.getElementById("projekForm").link.value = d.link || "";
         document.getElementById("projekForm").youtube.value = d.youtube || "";
+
         document.getElementById("tech-container").innerHTML = "";
         const techs = JSON.parse(d.teknologi || "[]");
         if (techs.length > 0) techs.forEach((t) => addTechField(t));
@@ -588,23 +570,38 @@
 
         for (let i = 1; i <= 5; i++) {
           const rawImg = d[`img${i}`];
+          const imgElement = document.getElementById(`prev-img${i}`);
           if (rawImg) {
             const b64 = arrayBufferToBase64(rawImg);
-            const imgElement = document.getElementById(`prev-img${i}`);
             imgElement.src = `data:image/jpeg;base64,${b64}`;
             imgElement.style.display = "block";
             document.getElementById(`actions-img${i}`).style.display = "flex";
             document.querySelector(
               `#box-img${i} .placeholder-icon`,
             ).style.display = "none";
+          } else {
+            clearImage(null, i); // Pastikan bersih jika kolom DB null
           }
         }
+      }
+
+      // --- PERBAIKAN VIEW FULLSCREEN ---
+      function viewFullScreen(idx, e) {
+        if (e) e.stopPropagation();
+        const img = document.getElementById(`prev-img${idx}`);
+        if (!img || !img.src || img.style.display === "none") return;
+        Swal.fire({
+          html: `<img src="${img.src}" class="img-fluid rounded shadow-sm" style="max-height:85vh">`,
+          showConfirmButton: false,
+          background: "transparent",
+          width: "auto",
+          showCloseButton: true,
+        });
       }
 
       async function deleteItem(id) {
         const result = await Swal.fire({
           title: "Hapus projek?",
-          text: "Data yang dihapus tidak bisa dikembalikan!",
           icon: "warning",
           showCancelButton: true,
           confirmButtonColor: "#d33",
@@ -712,8 +709,6 @@
 
       function logout() {
         localStorage.removeItem("admin_logged_in");
-        // Menggunakan replace() untuk mengganti histori browser.
-        // Ini memastikan tombol back tidak berfungsi untuk kembali ke admin.html.
         window.location.replace("login.html");
       }
     </script>
