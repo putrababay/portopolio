@@ -401,31 +401,42 @@
 
       async function handleFormSubmit(e) {
         e.preventDefault();
+
         Swal.fire({
-          title: "Menyimpan...",
+          title: "Menyimpan Data...",
           allowOutsideClick: false,
           didOpen: () => Swal.showLoading(),
         });
 
         const form = e.target;
         const id = document.getElementById("projekId").value;
-        const teknologi = JSON.stringify(
-          Array.from(document.querySelectorAll(".tech-input")).map(
-            (i) => i.value,
-          ),
-        );
 
-        // Proses semua file gambar menjadi Byte Array
-        const imgBlobs = [];
+        // Ambil data Tech Stack
+        const techs = Array.from(document.querySelectorAll(".tech-input")).map(
+          (i) => i.value,
+        );
+        const teknologi = JSON.stringify(techs);
+
+        // Ambil Gambar 1 sampai 5 sebagai Byte Array (BLOB)
+        const imgBlobs = {};
         for (let i = 1; i <= 5; i++) {
           const fileInput = document.getElementById(`file-img${i}`);
-          imgBlobs[i] = await fileToByteArray(fileInput.files[0]);
+          if (fileInput && fileInput.files.length > 0) {
+            imgBlobs[`img${i}`] = await fileToByteArray(fileInput.files[0]);
+          } else {
+            imgBlobs[`img${i}`] = null;
+          }
         }
 
-        let sql, params;
+        let sql = "";
+        let params = [];
+
         if (id) {
-          // UPDATE DATA
-          sql = `UPDATE projek SET nm_projek=?, tahun=?, title=?, deskripsi=?, fitur=?, link=?, youtube=?, teknologi=?`;
+          // --- LOGIC EDIT (UPDATE) ---
+          sql = `UPDATE projek SET 
+                  nm_projek = ?, tahun = ?, title = ?, deskripsi = ?, fitur = ?, 
+                  link = ?, youtube = ?, teknologi = ?`;
+
           params = [
             form.nm_projek.value,
             form.tahun.value,
@@ -437,18 +448,20 @@
             teknologi,
           ];
 
-          // Update BLOB hanya jika ada file baru yang dipilih
+          // Tambahkan kolom gambar ke SQL hanya jika ada file baru yang diunggah
           for (let i = 1; i <= 5; i++) {
-            if (imgBlobs[i]) {
-              sql += `, img${i}=?`;
-              params.push(imgBlobs[i]);
+            if (imgBlobs[`img${i}`]) {
+              sql += `, img${i} = ?`;
+              params.push(imgBlobs[`img${i}`]);
             }
           }
-          sql += ` WHERE id=?`;
+
+          sql += ` WHERE id = ?`;
           params.push(id);
         } else {
-          // INSERT DATA
-          sql = `INSERT INTO projek (nm_projek, tahun, title, deskripsi, fitur, link, youtube, teknologi, img1, img2, img3, img4, img5) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+          // --- LOGIC TAMBAH (INSERT) ---
+          sql = `INSERT INTO projek (nm_projek, tahun, title, deskripsi, fitur, link, youtube, teknologi, img1, img2, img3, img4, img5) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
           params = [
             form.nm_projek.value,
             form.tahun.value,
@@ -458,25 +471,26 @@
             form.link.value,
             form.youtube.value,
             teknologi,
-            imgBlobs[1],
-            imgBlobs[2],
-            imgBlobs[3],
-            imgBlobs[4],
-            imgBlobs[5],
+            imgBlobs.img1,
+            imgBlobs.img2,
+            imgBlobs.img3,
+            imgBlobs.img4,
+            imgBlobs.img5,
           ];
         }
 
-        const success = await runQuery(sql, params);
-        if (success) {
-          Swal.fire(
-            "Berhasil",
-            "Data telah sinkron dengan database",
-            "success",
-          );
+        const result = await runQuery(sql, params);
+
+        if (result) {
+          Swal.fire("Berhasil", "Projek berhasil diperbarui", "success");
           myModal.hide();
           loadData();
         } else {
-          Swal.fire("Gagal", "Terjadi kesalahan saat menyimpan data", "error");
+          Swal.fire(
+            "Gagal",
+            "Gagal menyimpan. Pastikan ukuran gambar tidak terlalu besar.",
+            "error",
+          );
         }
       }
 
@@ -485,9 +499,11 @@
         if (!res || res.length === 0) return;
         const d = res[0];
 
-        openModal(); // Reset form & buka modal
+        openModal();
+
         document.getElementById("projekId").value = d.id;
-        document.getElementById("projekForm").nm_projek.value = d.nm_projek;
+        document.getElementById("projekForm").nm_projek.value =
+          d.nm_projek || "";
         document.getElementById("projekForm").tahun.value = d.tahun || "";
         quillTitle.root.innerHTML = d.title || "";
         quillDeskripsi.root.innerHTML = d.deskripsi || "";
@@ -495,17 +511,20 @@
         document.getElementById("projekForm").link.value = d.link || "";
         document.getElementById("projekForm").youtube.value = d.youtube || "";
 
+        // Load Tech Stack
         document.getElementById("tech-container").innerHTML = "";
         const techs = JSON.parse(d.teknologi || "[]");
         if (techs.length > 0) techs.forEach((t) => addTechField(t));
         else addTechField();
 
+        // Load Preview Gambar 1 sampai 5
         for (let i = 1; i <= 5; i++) {
-          const b64 = arrayBufferToBase64(d[`img${i}`]);
-          if (b64) {
-            const img = document.getElementById(`prev-img${i}`);
-            img.src = `data:image/jpeg;base64,${b64}`;
-            img.style.display = "block";
+          const rawImg = d[`img${i}`];
+          if (rawImg) {
+            const b64 = arrayBufferToBase64(rawImg);
+            const imgElement = document.getElementById(`prev-img${i}`);
+            imgElement.src = `data:image/jpeg;base64,${b64}`;
+            imgElement.style.display = "block";
             document.getElementById(`actions-img${i}`).style.display = "flex";
             document.querySelector(
               `#box-img${i} .placeholder-icon`,
